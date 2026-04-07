@@ -35,8 +35,7 @@ pipeline {
             steps {
                 sh """
                 cd ${env.DEPLOY_DIR}
-                pm2 describe ${env.APP_NAME} > /dev/null
-                if [ \$? -eq 0 ]; then
+                if pm2 describe ${env.APP_NAME} > /dev/null 2>&1; then
                     pm2 restart ${env.APP_NAME}
                 else
                     pm2 start server.js --name ${env.APP_NAME}
