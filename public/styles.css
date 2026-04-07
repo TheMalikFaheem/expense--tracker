@@ -4,8 +4,8 @@
     --text-secondary: #94a3b8;
     --glass-bg: rgba(255, 255, 255, 0.05);
     --glass-border: rgba(255, 255, 255, 0.1);
-    --primary-color: #3b82f6;
-    --primary-hover: #2563eb;
+    --primary-color: #f97316;
+    --primary-hover: #ea580c;
     --income-color: #10b981;
     --expense-color: #ef4444;
 }
@@ -41,13 +41,13 @@ body {
 .blob-1 {
     top: -100px;
     left: -100px;
-    background: radial-gradient(circle, rgba(139,92,246,0.8) 0%, rgba(59,130,246,0) 70%);
+    background: radial-gradient(circle, rgba(249,115,22,0.8) 0%, rgba(251,146,60,0) 70%);
 }
 
 .blob-2 {
     bottom: -100px;
     right: -100px;
-    background: radial-gradient(circle, rgba(236,72,153,0.8) 0%, rgba(244,63,94,0) 70%);
+    background: radial-gradient(circle, rgba(245,158,11,0.8) 0%, rgba(245,158,11,0) 70%);
     animation-delay: -5s;
 }
 
@@ -71,7 +71,7 @@ header {
 header h1 {
     font-size: 3rem;
     font-weight: 700;
-    background: linear-gradient(to right, #a78bfa, #f472b6);
+    background: linear-gradient(to right, #f97316, #f59e0b);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 0.5rem;
@@ -162,7 +162,7 @@ input, select {
 
 input:focus, select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
 }
 
 select option {
@@ -173,7 +173,7 @@ select option {
 .btn-primary {
     width: 100%;
     padding: 1rem;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, #f97316, #ea580c);
     color: white;
     border: none;
     border-radius: 10px;
@@ -187,7 +187,7 @@ select option {
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 10px 20px rgba(249, 115, 22, 0.3);
 }
 
 /* Lists */
