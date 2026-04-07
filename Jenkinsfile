@@ -20,7 +20,7 @@ pipeline {
             steps {
                 echo "Saving artifact for potential future rollbacks..."
                 // Using tar instead of zip to avoid "command not found" errors on base Linux
-                sh "tar -czf build.tar.gz --exclude='.git' --exclude='node_modules' ."
+                sh "tar -czf build.tar.gz --exclude='.git' --exclude='node_modules' --exclude='build.tar.gz' ."
                 archiveArtifacts artifacts: 'build.tar.gz', followSymlinks: false
             }
         }
