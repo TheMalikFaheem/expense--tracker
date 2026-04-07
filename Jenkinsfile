@@ -7,27 +7,34 @@ pipeline {
         
         // This is the directory on the Linux server where the app runs
         DEPLOY_DIR = "/var/www/expense-tracker" 
+        
+        // Define your repository details for Git Revert
+        REPO_URL = 'github.com/TheMalikFaheem/expense--tracker.git'
+        BRANCH = 'main'
+        
+        // The ID of your GitHub Personal Access Token saved in Jenkins Credentials
+        // PLEASE VERIFY or create 'github-token-cred-id' in Manage Jenkins -> Credentials
+        GIT_CREDS_ID = 'github-token-cred-id' 
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
-            }
-        }
-        
-        stage('Archive Build') {
-            steps {
-                echo "Saving artifact for potential future rollbacks..."
-                // Using tar instead of zip to avoid "command not found" errors on base Linux
-                sh "tar -czf build.tar.gz --exclude='.git' --exclude='node_modules' --exclude='build.tar.gz' ."
-                archiveArtifacts artifacts: 'build.tar.gz', followSymlinks: false
+                // CRITICAL: Jenkins normally checks out a "detached HEAD" (just a commit hash). 
+                // You cannot push from a detached HEAD. This block forces Jenkins 
+                // to actually checkout the 'main' branch so it can push later.
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: "*/${BRANCH}"]], 
+                    extensions: [[$class: 'LocalBranch', localBranch: "${BRANCH}"]], 
+                    userRemoteConfigs: [[credentialsId: "${GIT_CREDS_ID}", url: "https://${REPO_URL}"]]
+                ])
             }
         }
         
         stage('Deploy Build Files') {
             steps {
-                sh "rsync -avz --exclude='.git' --exclude='node_modules' --exclude='build.tar.gz' ./ ${env.DEPLOY_DIR}/"
+                sh "rsync -avz --exclude='.git' --exclude='node_modules' ./ ${env.DEPLOY_DIR}/"
             }
         }
 
@@ -57,47 +64,35 @@ pipeline {
     post {
         failure {
             script {
-                echo "🚨 DEPLOYMENT FAILED! Initiating Automated Rollback..."
-                
-                // 1. Find the last successful build
-                def lastGoodBuild = currentBuild.previousSuccessfulBuild
-                
-                if (lastGoodBuild) {
-                    echo "Found last successful build: #${lastGoodBuild.number}"
-                    
-                    try {
-                        // 2. Copy the artifact from that specific old build
-                        copyArtifacts(
-                            projectName: env.JOB_NAME, 
-                            selector: specific("${lastGoodBuild.number}"), 
-                            filter: 'build.tar.gz'
-                        )
+                echo "🚨 Build failed! Initiating safe Git Revert..."
+
+                // Inject the Git credentials safely
+                withCredentials([usernamePassword(credentialsId: "${GIT_CREDS_ID}", passwordVariable: 'GIT_PASS', usernameVariable: 'GIT_USER')]) {
+                    sh """
+                        # 1. Configure the Jenkins Bot Identity
+                        git config user.name "Jenkins Auto-Rollback Bot"
+                        git config user.email "jenkins@mfatools.one"
                         
-                        echo "Artifact retrieved. Redeploying previous stable version..."
-                        
-                        // 3. Extract the old artifact over the deployment directory and restart
-                        sh """
-                        tar -xzf build.tar.gz -C ${env.DEPLOY_DIR}/
-                        cd ${env.DEPLOY_DIR}
-                        npm install
-                        if pm2 describe ${env.APP_NAME} > /dev/null 2>&1; then
-                            pm2 restart ${env.APP_NAME}
-                        else
-                            pm2 start server.js --name ${env.APP_NAME}
+                        # 2. INFINITE LOOP PROTECTION 
+                        # Check who made the last commit. If Jenkins made it, DO NOT revert again.
+                        LAST_AUTHOR=\$(git log -1 --pretty=format:'%an')
+                        if [ "\$LAST_AUTHOR" = "Jenkins Auto-Rollback Bot" ]; then
+                            echo "❌ ERROR: The last commit was already a rollback."
+                            echo "Aborting revert to prevent an infinite loop. Manual fix required!"
+                            exit 1
                         fi
-                        """
                         
-                        echo "✅ Rollback successful. The server is running Build #${lastGoodBuild.number}."
+                        # 3. Perform the Revert
+                        # Undo the last commit without prompting for a message
+                        echo "Reverting the last commit..."
+                        git revert HEAD --no-edit
                         
-                    } catch (Exception e) {
-                        // If the rollback itself fails, you have a critical system outage.
-                        echo "❌ CRITICAL ERROR: The rollback also failed! Manual intervention required."
-                        error("Rollback failed: ${e.getMessage()}")
-                    }
-                    
-                } else {
-                    echo "⚠️ No previous successful build found. Cannot roll back."
+                        # 4. Push the new "Undo" commit back to GitHub
+                        echo "Pushing revert back to ${BRANCH}..."
+                        git push https://${GIT_USER}:${GIT_PASS}@${REPO_URL} ${BRANCH}
+                    """
                 }
+                echo "✅ Revert pushed! A new recovery build should trigger immediately."
             }
 
             // Utilizes the "Email Extension Plugin" if the build fails
