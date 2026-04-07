@@ -16,9 +16,18 @@ pipeline {
             }
         }
         
+        stage('Archive Build') {
+            steps {
+                echo "Saving artifact for potential future rollbacks..."
+                // Using tar instead of zip to avoid "command not found" errors on base Linux
+                sh "tar -czf build.tar.gz --exclude='.git' --exclude='node_modules' ."
+                archiveArtifacts artifacts: 'build.tar.gz', followSymlinks: false
+            }
+        }
+        
         stage('Deploy Build Files') {
             steps {
-                sh "rsync -avz --exclude='.git' --exclude='node_modules' ./ ${env.DEPLOY_DIR}/"
+                sh "rsync -avz --exclude='.git' --exclude='node_modules' --exclude='build.tar.gz' ./ ${env.DEPLOY_DIR}/"
             }
         }
 
@@ -47,6 +56,50 @@ pipeline {
 
     post {
         failure {
+            script {
+                echo "🚨 DEPLOYMENT FAILED! Initiating Automated Rollback..."
+                
+                // 1. Find the last successful build
+                def lastGoodBuild = currentBuild.previousSuccessfulBuild
+                
+                if (lastGoodBuild) {
+                    echo "Found last successful build: #${lastGoodBuild.number}"
+                    
+                    try {
+                        // 2. Copy the artifact from that specific old build
+                        copyArtifacts(
+                            projectName: env.JOB_NAME, 
+                            selector: specific("${lastGoodBuild.number}"), 
+                            filter: 'build.tar.gz'
+                        )
+                        
+                        echo "Artifact retrieved. Redeploying previous stable version..."
+                        
+                        // 3. Extract the old artifact over the deployment directory and restart
+                        sh """
+                        tar -xzf build.tar.gz -C ${env.DEPLOY_DIR}/
+                        cd ${env.DEPLOY_DIR}
+                        npm install
+                        if pm2 describe ${env.APP_NAME} > /dev/null 2>&1; then
+                            pm2 restart ${env.APP_NAME}
+                        else
+                            pm2 start server.js --name ${env.APP_NAME}
+                        fi
+                        """
+                        
+                        echo "✅ Rollback successful. The server is running Build #${lastGoodBuild.number}."
+                        
+                    } catch (Exception e) {
+                        // If the rollback itself fails, you have a critical system outage.
+                        echo "❌ CRITICAL ERROR: The rollback also failed! Manual intervention required."
+                        error("Rollback failed: ${e.getMessage()}")
+                    }
+                    
+                } else {
+                    echo "⚠️ No previous successful build found. Cannot roll back."
+                }
+            }
+
             // Utilizes the "Email Extension Plugin" if the build fails
             // Using single quotes so the Token Macro Plugin handles variables
             emailext (
