@@ -13,8 +13,8 @@ pipeline {
         BRANCH = 'main'
         
         // The ID of your GitHub Personal Access Token saved in Jenkins Credentials
-        // PLEASE VERIFY or create 'github-token-cred-id' in Manage Jenkins -> Credentials
-        GIT_CREDS_ID = 'github-token-cred-id' 
+        // PLEASE VERIFY or create 'github-credentials' in Manage Jenkins -> Credentials
+        GIT_CREDS_ID = 'github-credentials' 
     }
 
     stages {
@@ -108,7 +108,7 @@ pipeline {
                 <p><i>This message was generated automatically by Jenkins.</i></p>
                 ''',
                 mimeType: 'text/html',
-                to: "your-email@example.com"
+                to: "faheemahmad2382@gmail.com"
             )
         }
         success {
